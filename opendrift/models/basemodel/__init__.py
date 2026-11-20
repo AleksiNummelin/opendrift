@@ -132,7 +132,70 @@ def coastline_crossing(lon1, lat1, lon2, lat2, step_degrees, land_side=True):
             lon_c[i] = xx[index]
             lat_c[i] = yy[index]
     return lon_c, lat_c
+    
+def multivariate_diffusion(kx,ky,kxy,rng,dt=1,N=1):
+    """
+    This function defines a covariance matrix
+    
+    [kx  kxy]
+    [kxy  ky]
+    
+    and returns a random velocity perturbation 
+    from a distribution that has absolute mean values of
+    sqrt( 2 * D / dt)
+    
+    inputs::
+    
+    kx  :: float, diffusivity component in x direction
+    ky  :: float, diffusivity component in y direction
+    kxy :: float, off-diagonal diffusivity component
+    rng :: numpy.random.default_rng() instance
+    dt  :: float, timestep, default=1
+    N   :: int, number of samples, default=1
+     
+    returns::
+    
+    x_vel :: np.array, squeeze(1,N)
+    y_vel :: np.array, squeeze(1,N)
+    """
+    mean=[0,0]
+    cov=np.array([[kx,kxy],[kxy,ky]],dtype=float)
+    #
+    # To ensure that the sampling is consistent with
+    # np.sqrt(2*D/dt) i.e. that if kx=ky=D and kxy=0
+    # then np.mean(abs(x_vel))== np.sqrt(2*D/dt), 
+    # we need to scale the covariance with np.pi / 2.
+    # In doing so the factor 2 drops out and we end up with
+    # (np.pi / dt) * cov
+    #
+    x_vel,y_vel = rng.multivariate_normal(mean, (np.pi / dt) * cov , N).T
+    return x_vel.squeeze(), y_vel.squeeze()
 
+def sample_multivariate_diffusion(kx,ky,kxy,dt=1,N=1,seed=42):
+    """
+    inputs::
+    
+    kx  :: np.array, diffusivity component in x direction, shape (J)
+    ky  :: np.array, diffusivity component in y direction, shape (J)
+    kxy :: np.array, off-diagonal diffusivity component, shape (J)
+    dt  :: float, timestep, default=1
+    N   :: int, number of samples, default=1
+    
+    returns :: 
+    
+    x_vel :: np.array, shape (J)
+    y_vel :: np.array, shape (J)
+    """
+    x_vel = []
+    y_vel = []
+    rng = np.random.default_rng(seed=seed)
+    for j in range(kx.size):
+        xv,yv = multivariate_diffusion(kx[j],ky[j],kxy[j],rng,dt=dt,N=N)
+        x_vel.append(xv)
+        y_vel.append(yv)
+    #
+    return np.array(x_vel), np.array(y_vel)
+    
 def require_mode(mode: Union[Mode, List[Mode]], post_next_mode=False, error=None):
     if not isinstance(mode, list):
         mode = [mode]
@@ -1756,68 +1819,6 @@ class OpenDriftSimulation(PhysicsMethods, Timeable, Configurable):
         logger.info('Seeding elements from previous run in %s' %(filename))
         ds = xr.open_dataset(filename)
         self.seed_from_dataset(ds, trajectory_time_index=trajectory_time_index, time=time, keep_properties=keep_properties, **kwargs)
-
-        def multivariate_diffusion(kx,ky,kxy,rng,dt=1,N=1):
-        """
-        This function defines a covariance matrix
-    
-        [kx  kxy]
-        [kxy  ky]
-    
-        and returns a random velocity perturbation 
-        from a distribution that has absolute mean values of
-        sqrt( 2 * D / dt)
-    
-        inputs::
-    
-        kx  :: float, diffusivity component in x direction
-        ky  :: float, diffusivity component in y direction
-        kxy :: float, off-diagonal diffusivity component
-        rng :: numpy.random.default_rng() instance
-        dt  :: float, timestep, default=1
-        N   :: int, number of samples, default=1
-        
-        returns::
-    
-        x_vel :: np.array, squeeze(1,N)
-        y_vel :: np.array, squeeze(1,N)
-        """
-        mean=[0,0]
-        cov=np.array([[kx,kxy],[kxy,ky]],dtype=float)
-        #
-        # To ensure that the sampling is consistent with
-        # np.sqrt(2*D/dt) i.e. that if kx=ky=D and kxy=0
-        # then np.mean(abs(x_vel))== np.sqrt(2*D/dt), 
-        # we need to scale the covariance with np.pi / 2.
-        # In doing so the factor 2 drops out and we end up with
-        # (np.pi / dt) * cov
-        #
-        x_vel,y_vel = rng.multivariate_normal(mean, (np.pi / dt) * cov , N).T
-        return x_vel.squeeze(), y_vel.squeeze()
-
-    def sample_multivariate_diffusion(kx,ky,kxy,dt=1,N=1,seed=42):
-        """
-        inputs::
-    
-        kx  :: np.array, diffusivity component in x direction, shape (J)
-        ky  :: np.array, diffusivity component in y direction, shape (J)
-        kxy :: np.array, off-diagonal diffusivity component, shape (J)
-        dt  :: float, timestep, default=1
-        N   :: int, number of samples, default=1
-    
-        returns :: 
-    
-        x_vel :: np.array, shape (J)
-        y_vel :: np.array, shape (J)
-        """
-        x_vel = []
-        y_vel = []
-        rng = np.random.default_rng(seed=seed)
-        for j in range(kx.size):
-            xv,yv = multivariate_diffusion(kx[j],ky[j],kxy[j],rng,dt=dt,N=N)
-            x_vel.append(xv)
-            y_vel.append(yv)
-        return np.array(x_vel), np.array(y_vel)
     
     def horizontal_diffusion(self):
         """Move elements with random walk according to given horizontal diffuivity."""
