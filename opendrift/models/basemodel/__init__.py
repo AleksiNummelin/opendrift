@@ -1757,12 +1757,78 @@ class OpenDriftSimulation(PhysicsMethods, Timeable, Configurable):
         ds = xr.open_dataset(filename)
         self.seed_from_dataset(ds, trajectory_time_index=trajectory_time_index, time=time, keep_properties=keep_properties, **kwargs)
 
+        def multivariate_diffusion(kx,ky,kxy,rng,dt=1,N=1):
+        """
+        This function defines a covariance matrix
+    
+        [kx  kxy]
+        [kxy  ky]
+    
+        and returns a random velocity perturbation 
+        from a distribution that has absolute mean values of
+        sqrt( 2 * D / dt)
+    
+        inputs::
+    
+        kx  :: float, diffusivity component in x direction
+        ky  :: float, diffusivity component in y direction
+        kxy :: float, off-diagonal diffusivity component
+        rng :: numpy.random.default_rng() instance
+        dt  :: float, timestep, default=1
+        N   :: int, number of samples, default=1
+        
+        returns::
+    
+        x_vel :: np.array, squeeze(1,N)
+        y_vel :: np.array, squeeze(1,N)
+        """
+        mean=[0,0]
+        cov=np.array([[kx,kxy],[kxy,ky]],dtype=float)
+        #
+        # To ensure that the sampling is consistent with
+        # np.sqrt(2*D/dt) i.e. that if kx=ky=D and kxy=0
+        # then np.mean(abs(x_vel))== np.sqrt(2*D/dt), 
+        # we need to scale the covariance with np.pi / 2.
+        # In doing so the factor 2 drops out and we end up with
+        # (np.pi / dt) * cov
+        #
+        x_vel,y_vel = rng.multivariate_normal(mean, (np.pi / dt) * cov , N).T
+        return x_vel.squeeze(), y_vel.squeeze()
+
+    def sample_multivariate_diffusion(kx,ky,kxy,dt=1,N=1,seed=42):
+        """
+        inputs::
+    
+        kx  :: np.array, diffusivity component in x direction, shape (J)
+        ky  :: np.array, diffusivity component in y direction, shape (J)
+        kxy :: np.array, off-diagonal diffusivity component, shape (J)
+        dt  :: float, timestep, default=1
+        N   :: int, number of samples, default=1
+    
+        returns :: 
+    
+        x_vel :: np.array, shape (J)
+        y_vel :: np.array, shape (J)
+        """
+        x_vel = []
+        y_vel = []
+        rng = np.random.default_rng(seed=seed)
+        for j in range(kx.size):
+            xv,yv = multivariate_diffusion(kx[j],ky[j],kxy[j],rng,dt=dt,N=N)
+            x_vel.append(xv)
+            y_vel.append(yv)
+        return np.array(x_vel), np.array(y_vel)
+    
     def horizontal_diffusion(self):
         """Move elements with random walk according to given horizontal diffuivity."""
         if 'horizontal_diffusivity' not in self.required_variables:
             logger.debug('No horizontal diffusion')
             return
         D = self.environment.horizontal_diffusivity
+        if 'horizontal_diffusivity_x' in self.required_variables:
+            Dx  = self.environment.horizontal_diffusivity_x
+            Dy  = self.environment.horizontal_diffusivity_y
+            Dxy = self.environment.horizontal_diffusivity_xy
         if len(D) == 0:
             return  # no active elements
         if D.max() == 0:
@@ -1772,10 +1838,32 @@ class OpenDriftSimulation(PhysicsMethods, Timeable, Configurable):
             logger.debug('No active elements, skipping horizontal diffusivity.')
             return
         dt = np.abs(self.time_step.total_seconds())
-        x_vel = self.elements.moving * np.sqrt(2 * D / dt) * np.random.normal(
-            scale=1, size=self.num_elements_active())
-        y_vel = self.elements.moving * np.sqrt(2 * D / dt) * np.random.normal(
-            scale=1, size=self.num_elements_active())
+        # here one should note that the np.random.normal with scale=1 does not return
+        # a distribution with absolute sample mean being 1. This implies that the 
+        # diffusive term is scaled by a random term that reduces D. The scaling that
+        # would return 1 as the absolute mean would be sqrt(pi/2) and therefore, I would suggest
+        # drawing the whole x_vel, y_vel from a random distribution with
+        # np.random.normal(scale=np.sqrt(D * np.pi / dt), size=self.num_elements_active())
+        #
+        #x_vel = self.elements.moving * np.sqrt(2 * D / dt) * np.random.normal(
+        #    scale=1, size=self.num_elements_active())
+        #y_vel = self.elements.moving * np.sqrt(2 * D / dt) * np.random.normal(
+        #    scale=1, size=self.num_elements_active())
+        #
+        # original 1D representation
+        if 'horizontal_diffusivity_x' not in self.required_variables:
+            D_in = np.sqrt(2 * D / dt)
+            rng     = np.random.default_rng(seed=42)
+            x_vel = self.elements.moving * rng.normal(
+                loc=0, scale=np.sqrt(np.pi/2)*D_in[:,None],
+                size=(self.num_elements_active(),1)).squeeze()
+            y_vel = self.elements.moving * np.random.normal(
+                loc=0, scale=np.sqrt(np.pi/2)*D_in[:,None],
+                size=(self.num_elements_active(),1)).squeeze()
+        else:
+            # new 2D representation
+            x_vel,y_vel=sample_multivariate_diffusion(Dx,Dy,Dxy,dt=dt,N=1,seed=42)
+        #
         speed = np.sqrt(x_vel * x_vel + y_vel * y_vel)
         if D.min() == D.max():
             dstring = f'{D.min()}'
