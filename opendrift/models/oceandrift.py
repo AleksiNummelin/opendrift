@@ -80,6 +80,12 @@ class OceanDrift(OpenDriftSimulation):
              'skip_if': ['drift:vertical_mixing', 'is', False],
              'profiles': True},
         'horizontal_diffusivity': {'fallback': 0},
+        'horizontal_diffusivity_x': {'fallback': 0,
+            'skip_if': ['drift:horizontal_mixing_2D', 'is', False]},
+        'horizontal_diffusivity_y': {'fallback': 0,
+            'skip_if': ['drift:horizontal_mixing_2D', 'is', False]},
+        'horizontal_diffusivity_xy': {'fallback': 0,
+            'skip_if': ['drift:horizontal_mixing_2D', 'is', False]},
         'sea_surface_wave_significant_height': {'fallback': 0},
         'sea_surface_wave_stokes_drift_x_velocity': {'fallback': 0,
             'skip_if': ['drift:stokes_drift', 'is', False]},
@@ -128,6 +134,8 @@ class OceanDrift(OpenDriftSimulation):
             'drift:vertical_advection_correction': {'type': 'bool', 'default': False, 'description':
                 'The vertical velocity from ocean model is partly due to sea level changes. But since element depth in OpenDrift (elements.z) is relative to actual surface, this part should be subtracted.',
                 'level': CONFIG_LEVEL_ADVANCED},
+            'drift:horizontal_mixing_2D': {'type': 'bool', 'default': False, 'level': CONFIG_LEVEL_ADVANCED,
+                'description': 'Assume 2D horizontal mixing tensor'},
             'drift:vertical_mixing': {'type': 'bool', 'default': False, 'level': CONFIG_LEVEL_BASIC,
                 'description': 'Activate vertical mixing scheme with inner loop'},
             'drift:vertical_mixing_at_surface': {'type': 'bool', 'default': False, 'description':
