@@ -163,12 +163,12 @@ def multivariate_diffusion(kx,ky,kxy,rng,dt=1,N=1):
     #
     # To ensure that the sampling is consistent with
     # np.sqrt(2*D/dt) i.e. that if kx=ky=D and kxy=0
-    # then np.mean(abs(x_vel))== np.sqrt(2*D/dt), 
-    # we need to scale the covariance with np.pi / 2.
-    # In doing so the factor 2 drops out and we end up with
-    # (np.pi / dt) * cov
+    # then np.mean(np.sqrt(x_vel**2+y_vel**2)== np.sqrt(2*D/dt), 
+    # we need to scale the covariance with 2/np.pi.
+    # with that, we end up with
+    # (4 / (dt*np.pi)) * cov
     #
-    x_vel,y_vel = rng.multivariate_normal(mean, (np.pi / dt) * cov , N).T
+    x_vel,y_vel = rng.multivariate_normal(mean, (4 / (dt*np.pi)) * cov , N).T
     return x_vel.squeeze(), y_vel.squeeze()
 
 def sample_multivariate_diffusion(kx,ky,kxy,dt=1,N=1,seed=42):
