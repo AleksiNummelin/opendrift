@@ -1864,6 +1864,8 @@ class OpenDriftSimulation(PhysicsMethods, Timeable, Configurable):
         else:
             # new 2D representation
             x_vel,y_vel=sample_multivariate_diffusion(Dx,Dy,Dxy,dt=dt,N=1,seed=42)
+            x_vel = self.elements.moving*x_vel
+            y_vel = self.elements.moving*y_vel
         #
         speed = np.sqrt(x_vel * x_vel + y_vel * y_vel)
         if D.min() == D.max():
