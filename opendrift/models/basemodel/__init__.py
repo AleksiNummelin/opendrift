@@ -1856,10 +1856,10 @@ class OpenDriftSimulation(PhysicsMethods, Timeable, Configurable):
             D_in = np.sqrt(2 * D / dt)
             rng     = np.random.default_rng(seed=42)
             x_vel = self.elements.moving * rng.normal(
-                loc=0, scale=np.sqrt(np.pi/2)*D_in[:,None],
+                loc=0, scale=np.sqrt(2 / np.pi) * D_in[:,None],
                 size=(self.num_elements_active(),1)).squeeze()
             y_vel = self.elements.moving * np.random.normal(
-                loc=0, scale=np.sqrt(np.pi/2)*D_in[:,None],
+                loc=0, scale=np.sqrt(2 / np.pi) * D_in[:,None],
                 size=(self.num_elements_active(),1)).squeeze()
         else:
             # new 2D representation
